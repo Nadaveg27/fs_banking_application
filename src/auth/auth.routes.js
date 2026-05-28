@@ -32,6 +32,7 @@ router.post('/register', async (req, res) => {
     if (err.message.includes('Invalid')) {
       return res.status(400).json({ message: err.message });
     }
+    console.error(err);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
