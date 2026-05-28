@@ -1,0 +1,371 @@
+openapi: 3.0.3
+info:
+  title: Web Banking API
+  description: REST API for the full-stack web banking application
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+# ─────────────────────────────────────────────
+# Security scheme — JWT Bearer token
+# ─────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ── Request bodies ──
+    RegisterRequest:
+      type: object
+      required: [email, password, phone]
+      properties:
+        email:
+          type: string
+          format: email
+          example: alice@gmail.com
+        password:
+          type: string
+          minLength: 6
+          example: secret123
+        phone:
+          type: string
+          example: "+972501234567"
+
+    VerifyOtpRequest:
+      type: object
+      required: [email, otp]
+      properties:
+        email:
+          type: string
+          format: email
+          example: alice@gmail.com
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          example: "482910"
+
+    ResendOtpRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: alice@gmail.com
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: alice@gmail.com
+        password:
+          type: string
+          example: secret123
+
+    TransferRequest:
+      type: object
+      required: [toEmail, amount]
+      properties:
+        toEmail:
+          type: string
+          format: email
+          example: bob@gmail.com
+        amount:
+          type: number
+          minimum: 0.01
+          example: 150.00
+
+    # ── Response bodies ──
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token — attach to all protected requests
+          example: eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiI2NjYifQ.abc
+
+    DashboardResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            email:
+              type: string
+              example: alice@gmail.com
+        balance:
+          type: number
+          example: 1500.00
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: tx_001
+        counterpartyEmail:
+          type: string
+          example: bob@gmail.com
+        amount:
+          type: number
+          description: Negative for sent, positive for received
+          example: -150.00
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-03-15T10:30:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Invalid credentials
+
+# ─────────────────────────────────────────────
+# Endpoints
+# ─────────────────────────────────────────────
+paths:
+
+  # ── 1. Register ──────────────────────────────
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: >
+        Creates an unverified user account and sends a 6-digit OTP
+        to the user's phone (via Twilio) or email (via Nodemailer).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registration accepted — OTP sent, awaiting verification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: OTP sent to alice@gmail.com
+        '400':
+          description: Invalid email format or phone format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email address already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Email already in use
+
+  # ── 2. Verify OTP ────────────────────────────
+  /auth/verify-otp:
+    post:
+      summary: Verify the OTP code sent during registration
+      description: >
+        Validates the 6-digit OTP. On success, marks the user as verified,
+        assigns a random starting balance, and returns a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+      responses:
+        '200':
+          description: OTP correct — user verified, JWT returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: OTP is incorrect or has expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Invalid or expired OTP
+
+  # ── 3. Resend OTP ────────────────────────────
+  /auth/resend-otp:
+    post:
+      summary: Resend the OTP code
+      description: >
+        Generates a new 6-digit OTP and resends it.
+        Use when the original code was not received or has expired.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendOtpRequest'
+      responses:
+        '200':
+          description: New OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: OTP resent to alice@gmail.com
+        '404':
+          description: No unverified account found for this email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── 4. Login ─────────────────────────────────
+  /auth/login:
+    post:
+      summary: Log in with email and password
+      description: >
+        Validates credentials. Returns a JWT token on success.
+        The user must have completed OTP verification before logging in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful — JWT returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Wrong password, email not found, or account not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Invalid credentials
+
+  # ── 5. Logout ────────────────────────────────
+  /auth/logout:
+    post:
+      summary: Log out the current user
+      description: >
+        Signals logout. The client must discard the JWT token.
+        No server-side session to destroy (JWT is stateless).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out
+        '401':
+          description: No valid token provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── 6. Dashboard ─────────────────────────────
+  /account/dashboard:
+    get:
+      summary: Get dashboard data
+      description: >
+        Returns the logged-in user's profile, current balance,
+        and list of recent transactions. Protected — requires JWT.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          description: Missing or invalid JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── 7. Transfer money ────────────────────────
+  /transactions:
+    post:
+      summary: Send money to another user
+      description: >
+        Transfers the specified amount from the logged-in user to
+        the recipient identified by email. Creates a transaction record
+        for both sender (negative amount) and receiver (positive amount).
+        Protected — requires JWT.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+      responses:
+        '200':
+          description: Transfer successful — both transaction records returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  senderTransaction:
+                    $ref: '#/components/schemas/Transaction'
+                  receiverTransaction:
+                    $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Insufficient balance
+        '401':
+          description: Missing or invalid JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Recipient email not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Recipient not found
