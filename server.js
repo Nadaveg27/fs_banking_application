@@ -1,4 +1,6 @@
 // Entry point: configures Express app, connects to MongoDB, mounts routers, and starts the server
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
