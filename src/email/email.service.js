@@ -4,7 +4,7 @@ async function sendVerificationEmail(email, verificationToken) {
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false,
+    secure: true,
     family: 4,
     auth: {
       user: process.env.EMAIL_USER,
@@ -37,7 +37,8 @@ async function sendAlreadyRegisteredEmail(email) {
     const transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
-        secure: false,
+        secure: true,
+        family: 4,
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS,
