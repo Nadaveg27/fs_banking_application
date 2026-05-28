@@ -1,25 +1,50 @@
-const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
+
+function createOAuth2Client() {
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  );
+  client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+  return client;
+}
+
+async function sendEmail({ to, subject, htmlBody, textBody }) {
+  const oauth2Client = createOAuth2Client();
+  const { token: accessToken } = await oauth2Client.getAccessToken();
+
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+  const rawMessage = [
+    `From: ${process.env.EMAIL_FROM}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    htmlBody,
+  ].join('\r\n');
+
+  const encodedMessage = Buffer.from(rawMessage)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw: encodedMessage },
+  });
+}
 
 async function sendVerificationEmail(email, verificationToken) {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      type: 'OAuth2',
-      user: process.env.EMAIL_USER,
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
-    },
-  });
-
   const verifyUrl = `${process.env.BASE_URL}/verify?token=${verificationToken}`;
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+  await sendEmail({
     to: email,
     subject: 'Verify your Maccabim Bank account',
-    text: 'Click this link to verify your account: ' + verifyUrl,
-    html: `
+    textBody: 'Click this link to verify your account: ' + verifyUrl,
+    htmlBody: `
       <div style="background-color:#0D1B3E;padding:40px;font-family:Arial,sans-serif;color:#ffffff;min-height:100vh;">
         <div style="max-width:480px;margin:0 auto;text-align:center;">
           <h1 style="letter-spacing:4px;font-size:22px;font-weight:bold;margin-bottom:32px;">MACCABIM BANK</h1>
@@ -34,25 +59,13 @@ async function sendVerificationEmail(email, verificationToken) {
 }
 
 async function sendAlreadyRegisteredEmail(email) {
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            type: 'OAuth2',
-            user: process.env.EMAIL_USER,
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
-        },
-    });
+  const loginUrl = `${process.env.BASE_URL}/login`;
 
-    const loginUrl = `${process.env.BASE_URL}/login`;
-
-    await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to: email,
-        subject: 'Someone tried to register a Maccabim Bank account',
-        text: `Someone tried to register a Maccabim Bank account with your email. If this was you, you already have an account — log in here: ${loginUrl}`,
-        html: `
+  await sendEmail({
+    to: email,
+    subject: 'Someone tried to register a Maccabim Bank account',
+    textBody: `Someone tried to register a Maccabim Bank account with your email. If this was you, you already have an account — log in here: ${loginUrl}`,
+    htmlBody: `
             <div style="background-color:#0D1B3E;padding:40px;font-family:Arial,sans-serif;color:#ffffff;min-height:100vh;">
                 <div style="max-width:480px;margin:0 auto;text-align:center;">
                     <h1 style="letter-spacing:4px;font-size:22px;font-weight:bold;margin-bottom:32px;">MACCABIM BANK</h1>
@@ -63,7 +76,7 @@ async function sendAlreadyRegisteredEmail(email) {
                 </div>
             </div>
         `,
-    });
+  });
 }
 
 module.exports = { sendVerificationEmail, sendAlreadyRegisteredEmail };
