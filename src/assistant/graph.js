@@ -69,6 +69,7 @@ function intentNode(state) {
                 if (parsed.valid === true) {
                     return {
                         intent: 'transfer',
+                        cancelled: false,
                         pendingTransfer: {
                             recipientEmail: parsed.recipientEmail,
                             amount: parsed.amount,
