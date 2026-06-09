@@ -1,5 +1,5 @@
 'use strict';
-const { StateGraph, END, MemorySaver, Annotation, interrupt, Command } = require('@langchain/langgraph');
+const { StateGraph, START, END, MemorySaver, Annotation, interrupt, Command } = require('@langchain/langgraph');
 const { ToolNode } = require('@langchain/langgraph/prebuilt');
 const { ChatGroq } = require('@langchain/groq');
 const { HumanMessage } = require('@langchain/core/messages');
@@ -145,7 +145,7 @@ const graph = new StateGraph(StateAnnotation)
     .addNode('intentNode', intentNode)
     .addNode('risk', riskNode)
     .addNode('execute', executeNode)
-    .addEdge('__start__', 'agent')
+    .addEdge(START, 'agent')
     .addConditionalEdges('agent', shouldContinue)
     .addEdge('tools', 'agent')
     .addConditionalEdges('intentNode', intentRouter)
@@ -157,8 +157,7 @@ async function runGraph({ message, userId, threadId }) {
     const config = { configurable: { thread_id: threadId, userId } };
 
     const currentState = await graph.getState(config);
-    const isInterrupted = currentState.next && currentState.next.includes('risk');
-    const isResuming = isInterrupted && currentState.values.cancelled;
+    const isResuming = currentState.next && currentState.next.includes('risk');
 
     const input = isResuming ? new Command({ resume: message }) : { messages: [new HumanMessage(message)], userId };
 
