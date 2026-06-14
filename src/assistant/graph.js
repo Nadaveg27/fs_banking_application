@@ -49,9 +49,6 @@ function shouldContinue(state) {
 }
 
 function intentNode(state) {
-    if (state.transactionResult !== null) {
-        return { intent: 'general', pendingTransfer: null, transactionResult: null };
-    }
     const msgList = state.messages;
     let lastHumanIdx = -1;
     for (let i = msgList.length - 1; i >= 0; i--) {
@@ -70,6 +67,7 @@ function intentNode(state) {
                     return {
                         intent: 'transfer',
                         cancelled: false,
+                        transactionResult: null, 
                         pendingTransfer: {
                             recipientEmail: parsed.recipientEmail,
                             amount: parsed.amount,
@@ -77,13 +75,13 @@ function intentNode(state) {
                         },
                     };
                 }
-            } catch (_) {
+            } catch (_) { // (_) does nothing and then loops again to the next message 
                 // non-JSON content, skip
             }
         }
     }
 
-    return { intent: 'general', pendingTransfer: null, transactionResult: null };
+    return { intent: 'general', pendingTransfer: null, transactionResult: null, cancelled: false };
 }
 
 function intentRouter(state) {
