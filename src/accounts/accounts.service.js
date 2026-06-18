@@ -5,7 +5,9 @@ const Transaction = require('../models/transaction.model');
 async function getAccountData({ userId, page = 1, limit = 10 }) {
   const user = await User.findById(userId);
   if (!user) {
-    throw new Error('User not found');
+    const err = new Error('User not found');
+    err.code = 'USER_NOT_FOUND';
+    throw err;
   }
 
   limit = Math.min(limit, 50);
