@@ -31,12 +31,35 @@ const StateAnnotation = Annotation.Root({
 });
 
 const allTools = [getBalanceTool, getRecentTransactionsTool, findUserTool, prepareTransferTool];
-const model = new ChatGroq({ model: 'llama-3.3-70b-versatile' }).bindTools(allTools);
-const toolNode = new ToolNode(allTools);
-const checkpointer = new MemorySaver();
+let _graph = null; // These are implementation details of the lazy-init mechanism (getGraph()),
+let _model = null; // not part of the public interface of this module. Therefore, the '_' prefix.
+
+function getGraph() {
+    if (_graph) return _graph;
+
+    _model = new ChatGroq({ model: 'llama-3.3-70b-versatile' }).bindTools(allTools);
+    const toolNode = new ToolNode(allTools);
+    const checkpointer = new MemorySaver();
+
+    _graph = new StateGraph(StateAnnotation)
+        .addNode('agent', agentNode)
+        .addNode('tools', toolNode)
+        .addNode('intentNode', intentNode)
+        .addNode('risk', riskNode)
+        .addNode('execute', executeNode)
+        .addEdge(START, 'agent')
+        .addConditionalEdges('agent', shouldContinue)
+        .addEdge('tools', 'agent')
+        .addConditionalEdges('intentNode', intentRouter)
+        .addConditionalEdges('risk', confirmationRouter)
+        .addEdge('execute', END)
+        .compile({ checkpointer });
+
+    return _graph;
+}
 
 async function agentNode(state, config) {
-    const response = await model.invoke(
+    const response = await _model.invoke(
         [{ role: 'system', content: SYSTEM_PROMPT }, ...state.messages],
         config
     );
@@ -138,21 +161,8 @@ async function executeNode(state) {
     }
 }
 
-const graph = new StateGraph(StateAnnotation)
-    .addNode('agent', agentNode)
-    .addNode('tools', toolNode)
-    .addNode('intentNode', intentNode)
-    .addNode('risk', riskNode)
-    .addNode('execute', executeNode)
-    .addEdge(START, 'agent')
-    .addConditionalEdges('agent', shouldContinue)
-    .addEdge('tools', 'agent')
-    .addConditionalEdges('intentNode', intentRouter)
-    .addConditionalEdges('risk', confirmationRouter)
-    .addEdge('execute', END)
-    .compile({ checkpointer });
-
 async function runGraph({ message, userId, threadId }) {
+    const graph = getGraph();
     const config = { configurable: { thread_id: threadId, userId } };
 
     const currentState = await graph.getState(config);
