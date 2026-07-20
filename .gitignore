@@ -2,3 +2,15 @@ node_modules/
 .env
 just_info/
 .claude
+venv/
+.pytest_cache/
+__pycache__/
+cookies.txt
+*.cookies
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
