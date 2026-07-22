@@ -118,7 +118,7 @@ export default function Dashboard() {
                         <Typography sx={{ color: '#8899BB', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', mb: 1 }}>
                             Account Balance
                         </Typography>
-                        <Typography sx={{ color: '#FFFFFF', fontWeight: 700, fontSize: '3rem', mb: 0.5 }}>
+                        <Typography data-testid="account-balance" sx={{ color: '#FFFFFF', fontWeight: 700, fontSize: '3rem', mb: 0.5 }}>
                             ${balance?.toFixed(2)}
                         </Typography>
                         <Typography sx={{ color: '#8899BB', fontSize: '0.875rem', mb: 3 }}>
@@ -312,13 +312,13 @@ export default function Dashboard() {
                                 <CircularProgress sx={{ color: '#FFFFFF' }} size={28} />
                             </Box>
                         ) : transactions.length === 0 ? (
-                            <Typography sx={{ color: '#8899BB', fontSize: '0.875rem' }}>
+                            <Typography data-testid="empty-transactions-message" sx={{ color: '#8899BB', fontSize: '0.875rem' }}>
                                 No transactions found.
                             </Typography>
                         ) : (
                             <>
                                 {transactions.map((tx, index) => (
-                                    <Box key={tx._id}>
+                                    <Box key={tx._id} data-testid="transaction-row">
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 2 }}>
                                             <Box>
                                                 <Typography sx={{ color: '#FFFFFF', fontSize: '0.875rem' }}>
@@ -330,7 +330,7 @@ export default function Dashboard() {
                                                     </Typography>
                                                 )}
                                             </Box>
-                                            <Typography sx={{ color: tx.amount < 0 ? '#FF6B6B' : '#6BFF9E', fontWeight: 600, fontSize: '0.875rem' }}>
+                                            <Typography data-testid="transaction-amount" sx={{ color: tx.amount < 0 ? '#FF6B6B' : '#6BFF9E', fontWeight: 600, fontSize: '0.875rem' }}>
                                                 {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
                                             </Typography>
                                             <Typography sx={{ color: '#8899BB', fontSize: '0.75rem' }}>
